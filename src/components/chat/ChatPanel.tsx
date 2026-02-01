@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Mic, MicOff, Bot, User, Volume2, VolumeX } from 'lucide-react';
-import { useChat } from '@/hooks/useChat';
+import { useChatHistory } from '@/hooks/useChat';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import ReactMarkdown from 'react-markdown';
 
@@ -25,7 +25,7 @@ const ChatPanel = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  const { messages, isTyping, sendMessage } = useChat();
+  const { messages, isTyping, sendMessage } = useChatHistory();
   const { speak, stop, isSpeaking, isSupported } = useSpeechSynthesis();
 
   const scrollToBottom = () => {

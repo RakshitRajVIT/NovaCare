@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 
 interface Message {
   id: string;
@@ -7,19 +7,18 @@ interface Message {
   timestamp: Date;
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/medical-chat`;
 
-export const useChat = () => {
+export const useChatHistory = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "Hello! I'm Nova, your AI health assistant. How can I help you today?",
+      content: "Hello! I'm Nova, your AI health assistant. How can I help you today? 🩺",
       timestamp: new Date(),
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(async (content: string): Promise<string> => {
     if (!content.trim()) return '';
@@ -35,16 +34,15 @@ export const useChat = () => {
     setIsTyping(true);
 
     // Prepare messages for API (only role and content)
-    const apiMessages = [...messages, userMessage].map(({ role, content }) => ({
+    const apiMessages = messages.map(({ role, content }) => ({
       role,
       content,
     }));
+    apiMessages.push({ role: 'user', content });
 
     let assistantContent = '';
 
     try {
-      abortControllerRef.current = new AbortController();
-
       const response = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
@@ -52,7 +50,6 @@ export const useChat = () => {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ messages: apiMessages }),
-        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -66,115 +63,77 @@ export const useChat = () => {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let textBuffer = '';
-      let streamDone = false;
 
       // Create assistant message placeholder
-      const assistantId = (Date.now() + 1).toString();
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: 'assistant', content: '', timestamp: new Date() },
-      ]);
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
 
-      while (!streamDone) {
+      let buffer = '';
+      
+      while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
 
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
+        buffer += decoder.decode(value, { stream: true });
+        
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine || trimmedLine.startsWith(':')) continue;
+          if (!trimmedLine.startsWith('data: ')) continue;
 
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') {
-            streamDone = true;
-            break;
-          }
+          const data = trimmedLine.slice(6);
+          if (data === '[DONE]') continue;
 
           try {
-            const parsed = JSON.parse(jsonStr);
-            const deltaContent = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (deltaContent) {
-              assistantContent += deltaContent;
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              assistantContent += delta;
               setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId ? { ...m, content: assistantContent } : m
+                prev.map((msg) =>
+                  msg.id === assistantMessage.id
+                    ? { ...msg, content: assistantContent }
+                    : msg
                 )
               );
             }
           } catch {
-            // Incomplete JSON, put it back
-            textBuffer = line + '\n' + textBuffer;
-            break;
+            // Skip invalid JSON
           }
         }
       }
 
-      // Final flush
-      if (textBuffer.trim()) {
-        for (let raw of textBuffer.split('\n')) {
-          if (!raw) continue;
-          if (raw.endsWith('\r')) raw = raw.slice(0, -1);
-          if (raw.startsWith(':') || raw.trim() === '') continue;
-          if (!raw.startsWith('data: ')) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const deltaContent = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (deltaContent) {
-              assistantContent += deltaContent;
-            }
-          } catch {
-            /* ignore */
-          }
-        }
-        if (assistantContent) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: assistantContent } : m
-            )
-          );
-        }
-      }
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.error('Chat error:', error);
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: error.message || "I'm sorry, I encountered an error. Please try again.",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => {
-          // Remove the empty assistant message if it exists
-          const filtered = prev.filter((m) => m.content !== '');
-          return [...filtered, errorMessage];
-        });
-      }
-    } finally {
       setIsTyping(false);
-      abortControllerRef.current = null;
+      return assistantContent;
+    } catch (error) {
+      console.error('Chat error:', error);
+      setIsTyping(false);
+
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '❌ Sorry, I encountered an error. Please try again.',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      return '';
     }
-
-    return assistantContent;
   }, [messages]);
-
-  const cancelStream = useCallback(() => {
-    abortControllerRef.current?.abort();
-  }, []);
 
   const clearMessages = useCallback(() => {
     setMessages([
       {
         id: '1',
         role: 'assistant',
-        content: "Hello! I'm Nova, your AI health assistant. How can I help you today?",
+        content: "Hello! I'm Nova, your AI health assistant. How can I help you today? 🩺",
         timestamp: new Date(),
       },
     ]);
@@ -184,7 +143,6 @@ export const useChat = () => {
     messages,
     isTyping,
     sendMessage,
-    cancelStream,
     clearMessages,
   };
 };
