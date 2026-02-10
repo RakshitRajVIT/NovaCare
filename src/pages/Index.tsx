@@ -26,37 +26,7 @@ import {
   Zap
 } from 'lucide-react';
 
-const aiModels = [
-  {
-    name: 'Nova General',
-    specialty: 'General Health Assistant',
-    description: 'Your primary AI companion for everyday health questions and wellness guidance.',
-    capabilities: ['Symptom Analysis', 'Health Tips', 'Lifestyle Advice'],
-    color: 'hsl(180, 60%, 50%)',
-    isActive: true,
-  },
-  {
-    name: 'Nova Cardio',
-    specialty: 'Cardiovascular Health',
-    description: 'Specialized in heart health, blood pressure management, and cardiac wellness.',
-    capabilities: ['Heart Health', 'BP Tracking', 'Exercise Plans'],
-    color: 'hsl(0, 70%, 55%)',
-  },
-  {
-    name: 'Nova Mind',
-    specialty: 'Mental Wellness',
-    description: 'Focused on mental health support, stress management, and emotional wellbeing.',
-    capabilities: ['Stress Relief', 'Mindfulness', 'Sleep Support'],
-    color: 'hsl(260, 60%, 55%)',
-  },
-  {
-    name: 'Nova Nutrition',
-    specialty: 'Diet & Nutrition',
-    description: 'Expert guidance on nutrition, meal planning, and dietary health optimization.',
-    capabilities: ['Meal Plans', 'Nutrition Info', 'Diet Analysis'],
-    color: 'hsl(140, 60%, 45%)',
-  },
-];
+
 
 const features = [
   {
@@ -253,25 +223,10 @@ const Index = () => {
                 transition={{ delay: 0.3 }}
                 className="mb-6"
               >
-                <h3 className="font-display text-xl font-semibold text-foreground mb-2">
-                  Specialized AI Models
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Choose from our suite of specialized medical AI assistants
-                </p>
+
               </motion.div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {aiModels.map((model, index) => (
-                  <AIModelCard
-                    key={model.name}
-                    {...model}
-                    delay={index}
-                    isActive={index === selectedModel}
-                    onClick={() => setSelectedModel(index)}
-                  />
-                ))}
-              </div>
+              
             </section>
 
             {/* Features Section */}
